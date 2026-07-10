@@ -37,6 +37,13 @@
   .hidden { display: none !important; }
   .name-badge { font-size: 15px; color: #475569; margin-bottom: 4px; }
   small.hint { color: #64748b; }
+  .history-item { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .history-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .history-body { display: flex; gap: 10px; }
+  .history-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; background: #e2e8f0; flex-shrink: 0; }
+  .history-info { font-size: 13px; color: #334155; line-height: 1.5; }
+  .history-info a { color: #2563eb; }
+  .history-warn { color: #b91c1c; font-size: 12px; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -56,6 +63,14 @@
     <button id="btnCheckout">เช็คเอาท์ (สแกน QR ที่ไซต์)</button>
     <button class="secondary" id="btnWfh">เช็คอิน/เช็คเอาท์ แบบ WFH</button>
     <button class="secondary" id="btnRequestWfh">ขออนุมัติพิกัดบ้าน (WFH)</button>
+    <button class="secondary" id="btnHistory">ดูประวัติของฉัน</button>
+  </div>
+
+  <!-- STEP: History -->
+  <div class="card hidden" id="historyCard">
+    <p>ประวัติเช็คอิน/เช็คเอาท์ 30 รายการล่าสุด</p>
+    <div id="historyList"></div>
+    <button class="secondary" id="historyBack">กลับเมนูหลัก</button>
   </div>
 
   <!-- STEP 2: QR scan -->
@@ -97,8 +112,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
 <script>
 /* ===================== ตั้งค่า ===================== */
-const LIFF_ID = '2010665135-hQm0IshW'; // แทนที่ด้วย LIFF ID จริงจาก LINE Developers Console
-const APPS_SCRIPT_URL = 'https://krittapolp.github.io/checkin-app/'; // แทนที่ด้วย URL ที่ได้จากการ Deploy Apps Script
+const LIFF_ID = '2010665135-hQm0IshW';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwSZP_0YjT_kyC6r4BZhLQGAn64JrTmVXmjP5saxP8azJBmfjbNgPruOJAFpEsQaaW_/exec';
 
 let employee = null;      // { employeeId, name, isWfhApproved, homeLat, homeLng }
 let pendingType = null;   // 'checkin' | 'checkout'
@@ -267,6 +282,43 @@ $('submitBtn').onclick = async () => {
 function resetToMenu() {
   pendingType = null; pendingSiteId = null; pendingPhoto = null;
   show('menuCard');
+}
+
+/* ===================== ประวัติของฉัน ===================== */
+$('btnHistory').onclick = async () => {
+  hideAll('menuCard');
+  show('historyCard');
+  const list = $('historyList');
+  list.innerHTML = 'กำลังโหลด...';
+  try {
+    const result = await callApi('getMyLogs', { employeeId: employee.employeeId, limit: 30 });
+    if (!result.ok) { list.innerHTML = 'โหลดไม่สำเร็จ: ' + result.error; return; }
+    if (!result.logs.length) { list.innerHTML = 'ยังไม่มีประวัติ'; return; }
+    list.innerHTML = result.logs.map(renderHistoryItem).join('');
+  } catch (e) {
+    list.innerHTML = 'เกิดข้อผิดพลาด: ' + e;
+  }
+};
+$('historyBack').onclick = () => { hideAll('historyCard'); show('menuCard'); };
+
+function renderHistoryItem(log) {
+  const d = new Date(log.timestamp);
+  const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  const typeLabel = log.type === 'checkin' ? '✅ เช็คอิน' : '🔚 เช็คเอาท์';
+  const mapUrl = `https://www.google.com/maps?q=${log.lat},${log.lng}`;
+  return `
+    <div class="history-item">
+      <div class="history-header"><span>${typeLabel} · ${log.siteId}</span><span>${dateStr} ${timeStr}</span></div>
+      <div class="history-body">
+        <img class="history-thumb" src="${log.photoUrl}" onerror="this.style.visibility='hidden'">
+        <div class="history-info">
+          <div>ระยะห่างจากจุด: ${log.distance} ม.</div>
+          <a href="${mapUrl}" target="_blank" rel="noopener">ดูตำแหน่งบนแผนที่</a>
+          ${log.spoofFlag ? `<div class="history-warn">⚠️ ${log.spoofFlag}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ===================== WFH: ขอลงทะเบียนพิกัดบ้าน ===================== */
