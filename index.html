@@ -281,11 +281,12 @@ $('captureBtn').onclick = async () => {
     await ensureFaceModel();
     const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }));
     if (!detection) {
-      alert('ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นหน้าชัดเจน อยู่ในที่มีแสงสว่างเพียงพอ');
+      showStatus('ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นหน้าชัดเจน อยู่ในที่มีแสงสว่างเพียงพอ', 'err');
       btn.disabled = false;
       btn.textContent = originalLabel;
-      return; // ยังอยู่หน้าถ่ายรูป กล้องยังเปิดอยู่ ให้ถ่ายใหม่ได้เลย
+      return; // ยังอยู่หน้าถ่ายรูป กล้องยังเปิดอยู่ ให้ถ่ายใหม่ได้ทันทีโดยไม่ต้องกดปิดอะไร
     }
+    $('status').classList.add('hidden'); // เคลียร์ข้อความเตือนเก่า (ถ้ามี) ตอนตรวจพบใบหน้าสำเร็จ
   } catch (e) {
     // ถ้าโหลดโมเดลตรวจจับใบหน้าไม่สำเร็จ (เช่น เน็ตช้า/หลุด) ให้ปล่อยผ่านแทนที่จะบล็อกการเช็คอิน
     console.warn('face detection unavailable: ' + e);
