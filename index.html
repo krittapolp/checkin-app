@@ -123,6 +123,7 @@
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script>
 /* ===================== ตั้งค่า ===================== */
 const LIFF_ID = '2010665135-hQm0IshW';
@@ -239,16 +240,27 @@ function stopQrStream() {
 $('qrCancel').onclick = () => { stopQrStream(); hideAll('qrCard'); show('menuCard'); };
 
 /* ===================== Selfie ===================== */
+/* ===================== ตรวจจับใบหน้าก่อนส่ง (กันถ่ายรูปอื่นที่ไม่ใช่หน้าคนส่งมา) ===================== */
+const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js/weights';
+let faceModelPromise = null;
+function ensureFaceModel() {
+  if (!faceModelPromise) {
+    faceModelPromise = faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+  }
+  return faceModelPromise;
+}
+
 async function goToSelfie() {
   show('selfieCard');
   const video = $('selfieVideo');
   selfieStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } } });
   video.srcObject = selfieStream;
+  ensureFaceModel().catch(e => console.warn('face model preload failed: ' + e)); // โหลดล่วงหน้าระหว่างเปิดกล้อง ไม่ต้องรอ
 }
 function stopSelfieStream() {
   if (selfieStream) { selfieStream.getTracks().forEach(t => t.stop()); selfieStream = null; }
 }
-$('captureBtn').onclick = () => {
+$('captureBtn').onclick = async () => {
   const video = $('selfieVideo');
   const canvas = $('selfieCanvas');
   // จำกัดขนาดภาพสูงสุด 480px (ด้านยาวสุด) เพื่อลดขนาดไฟล์ base64 ก่อนส่ง —
@@ -259,11 +271,33 @@ $('captureBtn').onclick = () => {
   canvas.width = Math.round(video.videoWidth * scale);
   canvas.height = Math.round(video.videoHeight * scale);
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // ตรวจว่ามีใบหน้าคนอยู่ในภาพก่อนยอมให้ไปหน้ายืนยัน — กันถ่ายอย่างอื่นส่งมาแทน
+  const btn = $('captureBtn');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังตรวจสอบใบหน้า...';
+  try {
+    await ensureFaceModel();
+    const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }));
+    if (!detection) {
+      alert('ไม่พบใบหน้าในภาพ กรุณาถ่ายใหม่ให้เห็นหน้าชัดเจน อยู่ในที่มีแสงสว่างเพียงพอ');
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      return; // ยังอยู่หน้าถ่ายรูป กล้องยังเปิดอยู่ ให้ถ่ายใหม่ได้เลย
+    }
+  } catch (e) {
+    // ถ้าโหลดโมเดลตรวจจับใบหน้าไม่สำเร็จ (เช่น เน็ตช้า/หลุด) ให้ปล่อยผ่านแทนที่จะบล็อกการเช็คอิน
+    console.warn('face detection unavailable: ' + e);
+  }
+
   pendingPhoto = canvas.toDataURL('image/jpeg', 0.6);
   $('previewImg').src = pendingPhoto;
   stopSelfieStream();
   hideAll('selfieCard');
   show('confirmCard');
+  btn.disabled = false;
+  btn.textContent = originalLabel;
 };
 $('selfieCancel').onclick = () => { stopSelfieStream(); hideAll('selfieCard'); show('menuCard'); };
 $('retakeBtn').onclick = () => { hideAll('confirmCard'); goToSelfie(); };
