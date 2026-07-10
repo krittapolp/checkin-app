@@ -203,7 +203,7 @@ function startFlow(type, isWfh) {
 async function goToQrScan() {
   show('qrCard');
   const video = $('qrVideo');
-  qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 720 }, height: { ideal: 720 } } });
   video.srcObject = qrStream;
   requestAnimationFrame(tickQr);
 }
@@ -237,7 +237,7 @@ $('qrCancel').onclick = () => { stopQrStream(); hideAll('qrCard'); show('menuCar
 async function goToSelfie() {
   show('selfieCard');
   const video = $('selfieVideo');
-  selfieStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+  selfieStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } } });
   video.srcObject = selfieStream;
 }
 function stopSelfieStream() {
@@ -246,10 +246,15 @@ function stopSelfieStream() {
 $('captureBtn').onclick = () => {
   const video = $('selfieVideo');
   const canvas = $('selfieCanvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  // จำกัดขนาดภาพสูงสุด 480px (ด้านยาวสุด) เพื่อลดขนาดไฟล์ base64 ก่อนส่ง —
+  // กล้องหน้ามือถือรุ่นใหม่บางเครื่องถ่ายได้ความละเอียดสูงมาก ถ้าไม่จำกัดขนาด
+  // ไฟล์จะใหญ่จนส่งไม่สำเร็จบนเน็ตมือถือ (พบเป็น "TypeError: Load failed")
+  const maxDim = 480;
+  const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
   canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-  pendingPhoto = canvas.toDataURL('image/jpeg', 0.8);
+  pendingPhoto = canvas.toDataURL('image/jpeg', 0.6);
   $('previewImg').src = pendingPhoto;
   stopSelfieStream();
   hideAll('selfieCard');
