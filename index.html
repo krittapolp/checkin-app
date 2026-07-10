@@ -66,6 +66,14 @@
     <button class="secondary" id="btnHistory">ดูประวัติของฉัน</button>
   </div>
 
+  <!-- STEP: WFH type chooser -->
+  <div class="card hidden" id="wfhTypeCard">
+    <p>เลือกประเภทการทำรายการ (WFH)</p>
+    <button id="wfhCheckinBtn">เช็คอิน (WFH)</button>
+    <button id="wfhCheckoutBtn">เช็คเอาท์ (WFH)</button>
+    <button class="secondary" id="wfhTypeCancel">ยกเลิก</button>
+  </div>
+
   <!-- STEP: History -->
   <div class="card hidden" id="historyCard">
     <p>ประวัติเช็คอิน/เช็คเอาท์ 30 รายการล่าสุด</p>
@@ -171,11 +179,10 @@ window.addEventListener('load', () => {
 /* ===================== เมนูหลัก ===================== */
 $('btnCheckin').onclick = () => startFlow('checkin', false);
 $('btnCheckout').onclick = () => startFlow('checkout', false);
-$('btnWfh').onclick = () => {
-  // เลือกเช็คอินหรือเช็คเอาท์แบบ WFH
-  const type = confirm('กด OK = เช็คอิน (WFH), Cancel = เช็คเอาท์ (WFH)') ? 'checkin' : 'checkout';
-  startFlow(type, true);
-};
+$('btnWfh').onclick = () => { hideAll('menuCard'); show('wfhTypeCard'); };
+$('wfhTypeCancel').onclick = () => { hideAll('wfhTypeCard'); show('menuCard'); };
+$('wfhCheckinBtn').onclick = () => { hideAll('wfhTypeCard'); startFlow('checkin', true); };
+$('wfhCheckoutBtn').onclick = () => { hideAll('wfhTypeCard'); startFlow('checkout', true); };
 
 function startFlow(type, isWfh) {
   pendingType = type;
