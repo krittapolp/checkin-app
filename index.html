@@ -321,7 +321,7 @@ function renderHistoryItem(log) {
   const d = new Date(log.timestamp);
   const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
   const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-  const typeLabel = log.type === 'checkin' ? '✅ เช็คอิน' : '🔚 เช็คเอาท์';
+  const typeLabel = log.type === 'checkin' ? '📥 เช็คอิน' : '📤 เช็คเอาท์';
   const mapUrl = `https://www.google.com/maps?q=${log.lat},${log.lng}`;
   return `
     <div class="history-item">
