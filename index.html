@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>เช็คอิน/เช็คเอาท์</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2563eb">
+<meta name="theme-color" content="#ffffff">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -14,9 +14,11 @@
     min-height: 100vh; display: flex; flex-direction: column;
   }
   header {
-    background: #2563eb; color: #fff; padding: 16px; text-align: center;
-    font-size: 18px; font-weight: 600;
+    background: #fff; padding: 16px; text-align: center;
+    border-bottom: 1px solid #e2e8f0;
   }
+  header img { height: 36px; display: block; margin: 0 auto; }
+  header .subtitle { font-size: 13px; color: #64748b; margin-top: 6px; }
   main { flex: 1; padding: 16px; max-width: 480px; margin: 0 auto; width: 100%; }
   .card {
     background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px;
@@ -47,7 +49,10 @@
 </style>
 </head>
 <body>
-<header>ระบบเช็คอิน / เช็คเอาท์</header>
+<header>
+  <img src="stadt-tech-logo.png" alt="Stadt Tech">
+  <div class="subtitle">ระบบเช็คอิน / เช็คเอาท์</div>
+</header>
 <main>
 
   <!-- STEP 0: LINE Login -->
