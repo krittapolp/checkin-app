@@ -281,7 +281,7 @@ $('submitBtn').onclick = async () => {
         photoBase64: pendingPhoto
       });
       if (result.ok) {
-        showStatus(`สำเร็จ! ${pendingType === 'checkin' ? 'เช็คอิน' : 'เช็คเอาท์'}เวลา ${new Date(result.timestamp).toLocaleTimeString('th-TH')}\nระยะห่างจากจุด: ${result.distance} เมตร` + (result.spoofFlag ? `\n⚠️ ${result.spoofFlag}` : ''), 'ok');
+        showStatus(`สำเร็จ! ${pendingType === 'checkin' ? 'เช็คอิน' : 'เช็คเอาท์'}เวลา ${new Date(result.timestamp).toLocaleTimeString('th-TH')}\nระยะห่างจากจุด: ${result.distance} เมตร` + (result.spoofFlag ? `\n⚠️ ${result.spoofFlag}` : '') + (result.discordDebug ? `\n[debug] discord: ${result.discordDebug}` : ''), 'ok');
       } else {
         showStatus('ไม่สำเร็จ: ' + result.error, 'err');
       }
