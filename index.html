@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>เช็คอิน/เช็คเอาท์</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Sarabun", sans-serif;
+    margin: 0; background: #f1f5f9; color: #0f172a;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    background: #2563eb; color: #fff; padding: 16px; text-align: center;
+    font-size: 18px; font-weight: 600;
+  }
+  main { flex: 1; padding: 16px; max-width: 480px; margin: 0 auto; width: 100%; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  button {
+    width: 100%; padding: 14px; font-size: 16px; border: none; border-radius: 10px;
+    background: #2563eb; color: #fff; font-weight: 600; margin-top: 10px; cursor: pointer;
+  }
+  button.secondary { background: #e2e8f0; color: #0f172a; }
+  button.success { background: #16a34a; }
+  button:disabled { opacity: 0.5; }
+  video, canvas { width: 100%; border-radius: 10px; background: #000; }
+  #status { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; white-space: pre-wrap; }
+  .ok { background: #dcfce7; color: #166534; }
+  .err { background: #fee2e2; color: #991b1b; }
+  .info { background: #e0f2fe; color: #075985; }
+  .hidden { display: none !important; }
+  .name-badge { font-size: 15px; color: #475569; margin-bottom: 4px; }
+  small.hint { color: #64748b; }
+</style>
+</head>
+<body>
+<header>ระบบเช็คอิน / เช็คเอาท์</header>
+<main>
+
+  <!-- STEP 0: LINE Login -->
+  <div class="card" id="loginCard">
+    <p>เข้าสู่ระบบด้วยบัญชี LINE เพื่อเริ่มเช็คอิน/เช็คเอาท์</p>
+    <button id="loginBtn">เข้าสู่ระบบด้วย LINE</button>
+  </div>
+
+  <!-- STEP 1: Menu -->
+  <div class="card hidden" id="menuCard">
+    <div class="name-badge">สวัสดี, <b id="empName"></b></div>
+    <button id="btnCheckin">เช็คอิน (สแกน QR ที่ไซต์)</button>
+    <button id="btnCheckout">เช็คเอาท์ (สแกน QR ที่ไซต์)</button>
+    <button class="secondary" id="btnWfh">เช็คอิน/เช็คเอาท์ แบบ WFH</button>
+    <button class="secondary" id="btnRequestWfh">ขออนุมัติพิกัดบ้าน (WFH)</button>
+  </div>
+
+  <!-- STEP 2: QR scan -->
+  <div class="card hidden" id="qrCard">
+    <p>สแกน QR code ที่ติดอยู่หน้างาน</p>
+    <video id="qrVideo" playsinline autoplay muted></video>
+    <canvas id="qrCanvas" class="hidden"></canvas>
+    <button class="secondary" id="qrCancel">ยกเลิก</button>
+  </div>
+
+  <!-- STEP 3: Selfie -->
+  <div class="card hidden" id="selfieCard">
+    <p>ถ่ายรูปหน้าตรงเพื่อยืนยันตัวตน</p>
+    <video id="selfieVideo" playsinline autoplay muted></video>
+    <canvas id="selfieCanvas" class="hidden"></canvas>
+    <button id="captureBtn">ถ่ายรูป</button>
+    <button class="secondary" id="selfieCancel">ยกเลิก</button>
+  </div>
+
+  <!-- STEP 3b: confirm photo -->
+  <div class="card hidden" id="confirmCard">
+    <p>ตรวจสอบรูปก่อนส่ง</p>
+    <img id="previewImg" style="width:100%;border-radius:10px;">
+    <button class="success" id="submitBtn">ยืนยันส่งข้อมูล</button>
+    <button class="secondary" id="retakeBtn">ถ่ายใหม่</button>
+  </div>
+
+  <!-- STEP: WFH request form -->
+  <div class="card hidden" id="wfhRequestCard">
+    <p>กดปุ่มด้านล่างขณะอยู่ที่บ้าน เพื่อลงทะเบียนพิกัดบ้านให้ HR อนุมัติ (ทำครั้งเดียว)</p>
+    <button id="btnSubmitWfhRequest">ลงทะเบียนพิกัดบ้านของฉันตอนนี้</button>
+    <button class="secondary" id="wfhRequestCancel">ยกเลิก</button>
+  </div>
+
+  <div id="status" class="hidden"></div>
+</main>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<script>
+/* ===================== ตั้งค่า ===================== */
+const LIFF_ID = 'YOUR_LIFF_ID_HERE'; // แทนที่ด้วย LIFF ID จริงจาก LINE Developers Console
+const APPS_SCRIPT_URL = 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'; // แทนที่ด้วย URL ที่ได้จากการ Deploy Apps Script
+
+let employee = null;      // { employeeId, name, isWfhApproved, homeLat, homeLng }
+let pendingType = null;   // 'checkin' | 'checkout'
+let pendingSiteId = null; // site_id จาก QR หรือ 'WFH'
+let pendingPhoto = null;  // base64
+let qrStream = null;
+let selfieStream = null;
+
+const $ = id => document.getElementById(id);
+
+function showStatus(msg, cls) {
+  const el = $('status');
+  el.textContent = msg;
+  el.className = cls;
+}
+function hideAll(...ids) { ids.forEach(id => $(id).classList.add('hidden')); }
+function show(id) { $(id).classList.remove('hidden'); }
+
+/* ===================== POST helper (หลีกเลี่ยง CORS preflight ด้วย text/plain) ===================== */
+async function callApi(action, payload) {
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, ...payload })
+  });
+  return res.json();
+}
+
+/* ===================== LINE Login ===================== */
+async function initLiff() {
+  await liff.init({ liffId: LIFF_ID });
+  if (!liff.isLoggedIn()) {
+    $('loginBtn').onclick = () => liff.login();
+    return;
+  }
+  const idToken = liff.getIDToken();
+  showStatus('กำลังตรวจสอบตัวตน...', 'info');
+  const result = await callApi('lineLogin', { idToken });
+  if (!result.ok) {
+    showStatus('เข้าสู่ระบบไม่สำเร็จ: ' + result.error, 'err');
+    return;
+  }
+  employee = result.employee;
+  $('empName').textContent = employee.name || employee.employeeId;
+  hideAll('loginCard');
+  show('menuCard');
+  showStatus('', '');
+  $('status').classList.add('hidden');
+}
+$('loginBtn').onclick = () => liff.login();
+window.addEventListener('load', () => {
+  if (typeof liff !== 'undefined') initLiff().catch(e => showStatus('LIFF init error: ' + e, 'err'));
+});
+
+/* ===================== เมนูหลัก ===================== */
+$('btnCheckin').onclick = () => startFlow('checkin', false);
+$('btnCheckout').onclick = () => startFlow('checkout', false);
+$('btnWfh').onclick = () => {
+  // เลือกเช็คอินหรือเช็คเอาท์แบบ WFH
+  const type = confirm('กด OK = เช็คอิน (WFH), Cancel = เช็คเอาท์ (WFH)') ? 'checkin' : 'checkout';
+  startFlow(type, true);
+};
+
+function startFlow(type, isWfh) {
+  pendingType = type;
+  hideAll('menuCard');
+  if (isWfh) {
+    pendingSiteId = 'WFH';
+    goToSelfie();
+  } else {
+    goToQrScan();
+  }
+}
+
+/* ===================== QR Scan ===================== */
+async function goToQrScan() {
+  show('qrCard');
+  const video = $('qrVideo');
+  qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  video.srcObject = qrStream;
+  requestAnimationFrame(tickQr);
+}
+function tickQr() {
+  const video = $('qrVideo');
+  if (!qrStream) return;
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    const canvas = $('qrCanvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imageData.data, canvas.width, canvas.height);
+    if (code && code.data) {
+      stopQrStream();
+      pendingSiteId = code.data.trim();
+      hideAll('qrCard');
+      goToSelfie();
+      return;
+    }
+  }
+  requestAnimationFrame(tickQr);
+}
+function stopQrStream() {
+  if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+}
+$('qrCancel').onclick = () => { stopQrStream(); hideAll('qrCard'); show('menuCard'); };
+
+/* ===================== Selfie ===================== */
+async function goToSelfie() {
+  show('selfieCard');
+  const video = $('selfieVideo');
+  selfieStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+  video.srcObject = selfieStream;
+}
+function stopSelfieStream() {
+  if (selfieStream) { selfieStream.getTracks().forEach(t => t.stop()); selfieStream = null; }
+}
+$('captureBtn').onclick = () => {
+  const video = $('selfieVideo');
+  const canvas = $('selfieCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  pendingPhoto = canvas.toDataURL('image/jpeg', 0.8);
+  $('previewImg').src = pendingPhoto;
+  stopSelfieStream();
+  hideAll('selfieCard');
+  show('confirmCard');
+};
+$('selfieCancel').onclick = () => { stopSelfieStream(); hideAll('selfieCard'); show('menuCard'); };
+$('retakeBtn').onclick = () => { hideAll('confirmCard'); goToSelfie(); };
+
+/* ===================== Submit เช็คอิน/เช็คเอาท์ ===================== */
+$('submitBtn').onclick = async () => {
+  hideAll('confirmCard');
+  showStatus('กำลังตรวจสอบตำแหน่ง GPS...', 'info');
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude, longitude, accuracy } = pos.coords;
+    showStatus('กำลังส่งข้อมูล...', 'info');
+    try {
+      const result = await callApi(pendingType, {
+        employeeId: employee.employeeId,
+        name: employee.name,
+        siteId: pendingSiteId,
+        lat: latitude,
+        lng: longitude,
+        accuracy: accuracy,
+        photoBase64: pendingPhoto
+      });
+      if (result.ok) {
+        showStatus(`สำเร็จ! ${pendingType === 'checkin' ? 'เช็คอิน' : 'เช็คเอาท์'}เวลา ${new Date(result.timestamp).toLocaleTimeString('th-TH')}\nระยะห่างจากจุด: ${result.distance} เมตร` + (result.spoofFlag ? `\n⚠️ ${result.spoofFlag}` : ''), 'ok');
+      } else {
+        showStatus('ไม่สำเร็จ: ' + result.error, 'err');
+      }
+    } catch (e) {
+      showStatus('เกิดข้อผิดพลาด: ' + e, 'err');
+    }
+    resetToMenu();
+  }, err => {
+    showStatus('ไม่สามารถอ่านตำแหน่ง GPS ได้ กรุณาเปิดสิทธิ์ Location: ' + err.message, 'err');
+    resetToMenu();
+  }, { enableHighAccuracy: true, timeout: 15000 });
+};
+
+function resetToMenu() {
+  pendingType = null; pendingSiteId = null; pendingPhoto = null;
+  show('menuCard');
+}
+
+/* ===================== WFH: ขอลงทะเบียนพิกัดบ้าน ===================== */
+$('btnRequestWfh').onclick = () => { hideAll('menuCard'); show('wfhRequestCard'); };
+$('wfhRequestCancel').onclick = () => { hideAll('wfhRequestCard'); show('menuCard'); };
+$('btnSubmitWfhRequest').onclick = () => {
+  showStatus('กำลังอ่านตำแหน่งบ้านของคุณ...', 'info');
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const { latitude, longitude } = pos.coords;
+    const result = await callApi('requestWfh', {
+      employeeId: employee.employeeId, name: employee.name, lat: latitude, lng: longitude
+    });
+    showStatus(result.ok ? result.message : ('ไม่สำเร็จ: ' + result.error), result.ok ? 'ok' : 'err');
+    hideAll('wfhRequestCard');
+    show('menuCard');
+  }, err => {
+    showStatus('ไม่สามารถอ่านตำแหน่ง GPS ได้: ' + err.message, 'err');
+    hideAll('wfhRequestCard');
+    show('menuCard');
+  }, { enableHighAccuracy: true });
+};
+
+/* Register service worker for PWA installability */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
