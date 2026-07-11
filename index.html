@@ -170,7 +170,7 @@ async function initLiff() {
     // idToken อาจหมดอายุ (เช่น ค้าง session เก่าจากเบราว์เซอร์) — logout แล้วให้ login ใหม่
     // เพื่อขอ idToken สดใหม่ แทนที่จะค้าง error เดิมซ้ำๆ
     liff.logout();
-    showStatus('เซสชันหมดอายุ กรุณากด "เข้าสู่ระบบด้วย LINE" อีกครั้ง', 'err');
+    showStatus('เข้าสู่ระบบไม่สำเร็จ (' + result.error + ') กรุณากด "เข้าสู่ระบบด้วย LINE" อีกครั้ง', 'err');
     $('loginBtn').onclick = () => liff.login();
     return;
   }
