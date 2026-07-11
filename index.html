@@ -61,6 +61,13 @@
     <button id="loginBtn">เข้าสู่ระบบด้วย LINE</button>
   </div>
 
+  <!-- LINE user ID สำหรับส่งให้ HR (แสดงเมื่อ login LINE สำเร็จ ไม่ว่าจะเจอชื่อในระบบหรือไม่) -->
+  <div class="card hidden" id="lineIdCard">
+    <p>LINE user ID ของคุณ — คัดลอกส่งให้ HR เพื่อกรอกในชีท Employees</p>
+    <input id="lineIdInput" readonly style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;margin-bottom:8px;">
+    <button id="copyLineIdBtn">คัดลอก</button>
+  </div>
+
   <!-- STEP 1: Menu -->
   <div class="card hidden" id="menuCard">
     <div class="name-badge">สวัสดี, <b id="empName"></b></div>
@@ -157,26 +164,52 @@ async function callApi(action, payload) {
 }
 
 /* ===================== LINE Login ===================== */
+$('copyLineIdBtn').onclick = async () => {
+  const input = $('lineIdInput');
+  try {
+    await navigator.clipboard.writeText(input.value);
+    showStatus('คัดลอก LINE user ID แล้ว ส่งให้ HR ได้เลย', 'ok');
+  } catch (e) {
+    input.select();
+    document.execCommand('copy');
+    showStatus('คัดลอกแล้ว ส่งให้ HR ได้เลย', 'ok');
+  }
+};
+
 async function initLiff() {
   await liff.init({ liffId: LIFF_ID });
   if (!liff.isLoggedIn()) {
     $('loginBtn').onclick = () => liff.login();
     return;
   }
+
+  // แสดง LINE user ID ให้คัดลอกส่ง HR ได้ทันทีที่ login LINE สำเร็จ
+  // ไม่ว่าผลตรวจสอบกับชีท Employees จะเจอชื่อหรือไม่ก็ตาม
+  try {
+    const profile = await liff.getProfile();
+    $('lineIdInput').value = profile.userId;
+    show('lineIdCard');
+  } catch (e) {
+    console.warn('getProfile failed: ' + e);
+  }
+
   const idToken = liff.getIDToken();
   showStatus('กำลังตรวจสอบตัวตน...', 'info');
   const result = await callApi('lineLogin', { idToken });
   if (!result.ok) {
-    // idToken อาจหมดอายุ (เช่น ค้าง session เก่าจากเบราว์เซอร์) — logout แล้วให้ login ใหม่
-    // เพื่อขอ idToken สดใหม่ แทนที่จะค้าง error เดิมซ้ำๆ
-    liff.logout();
-    showStatus('เข้าสู่ระบบไม่สำเร็จ (' + result.error + ') กรุณากด "เข้าสู่ระบบด้วย LINE" อีกครั้ง', 'err');
+    // logout เฉพาะกรณี token มีปัญหาจริง (หมดอายุ/invalid) เพื่อให้กดล็อกอินใหม่ได้ token สดๆ
+    // ถ้าแค่ "ไม่พบพนักงานในระบบ" ไม่ต้อง logout เพราะ token ยังใช้ได้ปกติ แค่รอ HR เพิ่มชื่อ
+    if (result.error.indexOf('invalid LINE token') !== -1) {
+      liff.logout();
+      hideAll('lineIdCard');
+    }
+    showStatus('เข้าสู่ระบบไม่สำเร็จ: ' + result.error, 'err');
     $('loginBtn').onclick = () => liff.login();
     return;
   }
   employee = result.employee;
   $('empName').textContent = employee.name || employee.employeeId;
-  hideAll('loginCard');
+  hideAll('loginCard', 'lineIdCard');
   show('menuCard');
   showStatus('', '');
   $('status').classList.add('hidden');
