@@ -88,7 +88,12 @@
 
   <!-- STEP: History -->
   <div class="card hidden" id="historyCard">
-    <p>ประวัติเช็คอิน/เช็คเอาท์ 30 รายการล่าสุด</p>
+    <p>ประวัติเช็คอิน/เช็คเอาท์</p>
+    <select id="historyRangeSelect" style="width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;margin-bottom:12px;">
+      <option value="30">30 วันล่าสุด</option>
+      <option value="90">90 วันล่าสุด</option>
+      <option value="all">ทั้งหมด</option>
+    </select>
     <div id="historyList"></div>
     <button class="secondary" id="historyBack">กลับเมนูหลัก</button>
   </div>
@@ -114,6 +119,11 @@
   <div class="card hidden" id="confirmCard">
     <p>ตรวจสอบรูปก่อนส่ง</p>
     <img id="previewImg" style="width:100%;border-radius:10px;">
+    <div id="taskNoteWrap" class="hidden">
+      <label for="taskNoteInput" style="display:block;margin-top:12px;font-weight:600;">งานที่ทำวันนี้ <span style="color:#dc2626;">*</span></label>
+      <textarea id="taskNoteInput" maxlength="200" rows="3" placeholder="เช่น ทำระบบเช็คอินให้เสร็จตามแผน" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-family:inherit;font-size:14px;box-sizing:border-box;"></textarea>
+      <div style="text-align:right;font-size:12px;color:#94a3b8;"><span id="taskNoteCount">0</span>/200</div>
+    </div>
     <button class="success" id="submitBtn">ยืนยันส่งข้อมูล</button>
     <button class="secondary" id="retakeBtn">ถ่ายใหม่</button>
   </div>
@@ -327,6 +337,12 @@ $('captureBtn').onclick = async () => {
 
   pendingPhoto = canvas.toDataURL('image/jpeg', 0.6);
   $('previewImg').src = pendingPhoto;
+  // ช่องกรอกงานที่ทำวันนี้ บังคับเฉพาะตอนเช็คเอาท์ (ทั้งที่ไซต์และ WFH) เพื่อเอาไปทำ timesheet รายเดือน
+  if (pendingType === 'checkout') {
+    show('taskNoteWrap');
+  } else {
+    hideAll('taskNoteWrap');
+  }
   stopSelfieStream();
   hideAll('selfieCard');
   show('confirmCard');
@@ -336,8 +352,18 @@ $('captureBtn').onclick = async () => {
 $('selfieCancel').onclick = () => { stopSelfieStream(); hideAll('selfieCard'); show('menuCard'); };
 $('retakeBtn').onclick = () => { hideAll('confirmCard'); goToSelfie(); };
 
+$('taskNoteInput').addEventListener('input', () => {
+  $('taskNoteCount').textContent = $('taskNoteInput').value.length;
+});
+
 /* ===================== Submit เช็คอิน/เช็คเอาท์ ===================== */
 $('submitBtn').onclick = async () => {
+  // บังคับกรอกงานที่ทำวันนี้ก่อนเช็คเอาท์ — ยังอยู่หน้ายืนยัน ไม่ต้องปิดกล้อง/การ์ด กรอกแล้วกดใหม่ได้เลย
+  const taskNoteVal = pendingType === 'checkout' ? $('taskNoteInput').value.trim() : '';
+  if (pendingType === 'checkout' && !taskNoteVal) {
+    showStatus('กรุณากรอกงานที่ทำวันนี้ก่อนกดยืนยันส่งข้อมูล', 'err');
+    return;
+  }
   hideAll('confirmCard');
   showStatus('กำลังตรวจสอบตำแหน่ง GPS...', 'info');
   navigator.geolocation.getCurrentPosition(async pos => {
@@ -351,7 +377,8 @@ $('submitBtn').onclick = async () => {
         lat: latitude,
         lng: longitude,
         accuracy: accuracy,
-        photoBase64: pendingPhoto
+        photoBase64: pendingPhoto,
+        taskNote: taskNoteVal
       });
       if (result.ok) {
         showStatus(`สำเร็จ! ${pendingType === 'checkin' ? 'เช็คอิน' : 'เช็คเอาท์'}เวลา ${new Date(result.timestamp).toLocaleTimeString('th-TH')}\nระยะห่างจากจุด: ${result.distance} เมตร` + (result.spoofFlag ? `\n⚠️ ${result.spoofFlag}` : '') + (result.hoursNote ? `\n⏰ ${result.hoursNote}` : '') + (result.discordDebug ? `\n[debug] discord: ${result.discordDebug}` : ''), 'ok');
@@ -370,25 +397,36 @@ $('submitBtn').onclick = async () => {
 
 function resetToMenu() {
   pendingType = null; pendingSiteId = null; pendingPhoto = null;
+  $('taskNoteInput').value = '';
+  $('taskNoteCount').textContent = '0';
+  hideAll('taskNoteWrap');
   show('menuCard');
 }
 
 /* ===================== ประวัติของฉัน ===================== */
-$('btnHistory').onclick = async () => {
+$('btnHistory').onclick = () => {
   hideAll('menuCard');
   show('historyCard');
+  $('historyRangeSelect').value = '30';
+  loadHistory();
+};
+$('historyRangeSelect').onchange = loadHistory;
+$('historyBack').onclick = () => { hideAll('historyCard'); show('menuCard'); };
+
+async function loadHistory() {
   const list = $('historyList');
   list.innerHTML = 'กำลังโหลด...';
+  const rangeVal = $('historyRangeSelect').value; // '30' | '90' | 'all'
+  const days = rangeVal === 'all' ? null : Number(rangeVal);
   try {
-    const result = await callApi('getMyLogs', { employeeId: employee.employeeId, limit: 30 });
+    const result = await callApi('getMyLogs', { employeeId: employee.employeeId, days });
     if (!result.ok) { list.innerHTML = 'โหลดไม่สำเร็จ: ' + result.error; return; }
     if (!result.logs.length) { list.innerHTML = 'ยังไม่มีประวัติ'; return; }
     list.innerHTML = result.logs.map(renderHistoryItem).join('');
   } catch (e) {
     list.innerHTML = 'เกิดข้อผิดพลาด: ' + e;
   }
-};
-$('historyBack').onclick = () => { hideAll('historyCard'); show('menuCard'); };
+}
 
 function renderHistoryItem(log) {
   const d = new Date(log.timestamp);
@@ -405,6 +443,7 @@ function renderHistoryItem(log) {
           <div>ระยะห่างจากจุด: ${log.distance} ม.</div>
           <a href="${mapUrl}" target="_blank" rel="noopener">ดูตำแหน่งบนแผนที่</a>
           ${log.spoofFlag ? `<div class="history-warn">⚠️ ${log.spoofFlag}</div>` : ''}
+          ${log.taskNote ? `<div>📝 งาน: ${log.taskNote}</div>` : ''}
         </div>
       </div>
     </div>`;
