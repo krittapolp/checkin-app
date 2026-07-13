@@ -2,4 +2,4 @@
 // (ไม่ทำ offline caching เพราะระบบนี้ออกแบบให้ต้องมีอินเทอร์เน็ตเสมอ)
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => self.clients.claim());
-self.addEventListener('fetch', () => {}); // ปล่อยผ่านไปที่ network ตามปกติ
+// I3: empty fetch listener removed — browser falls through to network by default
