@@ -402,7 +402,7 @@ $('submitBtn').onclick = async () => {
   }, err => {
     showStatus('ไม่สามารถอ่านตำแหน่ง GPS ได้ กรุณาเปิดสิทธิ์ Location: ' + err.message, 'err');
     resetToMenu();
-  }, { enableHighAccuracy: true, timeout: 15000 });
+  }, { enableHighAccuracy: true, timeout: 30000, maximumAge: 30000 });
 };
 
 function resetToMenu() {
@@ -483,7 +483,7 @@ $('btnSubmitWfhRequest').onclick = () => {
     showStatus('ไม่สามารถอ่านตำแหน่ง GPS ได้: ' + err.message, 'err');
     hideAll('wfhRequestCard');
     show('menuCard');
-  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }); // W4: add GPS timeout
+  }, { enableHighAccuracy: false, timeout: 30000, maximumAge: 120000 }); // home location: low accuracy OK, allow cached
 };
 
 /* Register service worker for PWA installability */
