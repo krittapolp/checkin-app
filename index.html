@@ -30,6 +30,7 @@
   }
   button.secondary { background: #e2e8f0; color: #0f172a; }
   button.success { background: #16a34a; }
+  button.danger { background: #dc2626; }
   button:disabled { opacity: 0.5; }
   video, canvas { width: 100%; border-radius: 10px; background: #000; }
   #status { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; white-space: pre-wrap; }
@@ -76,6 +77,18 @@
     <button class="secondary" id="btnWfh">เช็คอิน/เช็คเอาท์ แบบ WFH</button>
     <button class="secondary" id="btnRequestWfh">ขออนุมัติพิกัดบ้าน (WFH)</button>
     <button class="secondary" id="btnHistory">ดูประวัติของฉัน</button>
+    <button class="danger" id="btnForgotCheckout">แจ้งลืมเช็คเอาท์</button>
+  </div>
+
+  <!-- STEP: Forgot checkout request -->
+  <div class="card hidden" id="forgotCheckoutCard">
+    <p>ใช้ปุ่มนี้เฉพาะตอนที่ระบบล็อกไม่ให้เช็คอินใหม่ได้ (เพราะลืมเช็คเอาท์ครั้งก่อน) กรอกเวลาที่คาดว่าออกจากงานโดยประมาณ ระบบจะแจ้ง HR ให้ตรวจสอบและแก้ไขให้</p>
+    <label for="forgotTimeInput" style="display:block;font-weight:600;margin-top:8px;">เวลาที่คาดว่าออกจากงาน</label>
+    <input type="datetime-local" id="forgotTimeInput" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;box-sizing:border-box;margin-top:4px;">
+    <label for="forgotNoteInput" style="display:block;font-weight:600;margin-top:12px;">หมายเหตุ (ถ้ามี)</label>
+    <textarea id="forgotNoteInput" maxlength="200" rows="3" placeholder="เช่น ลืมกดตอนรีบออกจากที่ทำงาน" style="width:100%;border-radius:8px;border:1px solid #cbd5e1;padding:8px;font-family:inherit;font-size:14px;box-sizing:border-box;margin-top:4px;"></textarea>
+    <button class="danger" id="btnSubmitForgotCheckout">ส่งคำขอ</button>
+    <button class="secondary" id="forgotCheckoutCancel">ยกเลิก</button>
   </div>
 
   <!-- STEP: WFH type chooser -->
@@ -484,6 +497,38 @@ $('btnSubmitWfhRequest').onclick = () => {
     hideAll('wfhRequestCard');
     show('menuCard');
   }, { enableHighAccuracy: false, timeout: 30000, maximumAge: 120000 }); // home location: low accuracy OK, allow cached
+};
+
+/* ===================== แจ้งลืมเช็คเอาท์ (self-service) ===================== */
+$('btnForgotCheckout').onclick = () => {
+  hideAll('menuCard');
+  // ตั้งค่าเริ่มต้นของช่องเวลาเป็นตอนนี้ ให้พนักงานปรับแก้เองได้ตามจริง
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); // ปรับให้ตรงกับเวลาท้องถิ่นของเครื่อง
+  $('forgotTimeInput').value = now.toISOString().slice(0, 16);
+  $('forgotNoteInput').value = '';
+  show('forgotCheckoutCard');
+};
+$('forgotCheckoutCancel').onclick = () => { hideAll('forgotCheckoutCard'); show('menuCard'); };
+$('btnSubmitForgotCheckout').onclick = async () => {
+  const timeVal = $('forgotTimeInput').value;
+  if (!timeVal) {
+    showStatus('กรุณาระบุเวลาที่คาดว่าออกจากงาน', 'err');
+    return;
+  }
+  const note = $('forgotNoteInput').value.trim();
+  hideAll('forgotCheckoutCard');
+  showStatus('กำลังส่งคำขอ...', 'info');
+  try {
+    const result = await callApi('requestForgotCheckout', {
+      employeeId: employee.employeeId, sessionToken: sessionToken,
+      requestedCheckoutTime: new Date(timeVal).toISOString(), note
+    });
+    showStatus(result.ok ? result.message : ('ไม่สำเร็จ: ' + result.error), result.ok ? 'ok' : 'err');
+  } catch (e) {
+    showStatus('เกิดข้อผิดพลาด: ' + e.message, 'err');
+  }
+  show('menuCard');
 };
 
 /* Register service worker for PWA installability */
