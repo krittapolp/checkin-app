@@ -33,6 +33,9 @@
   button.danger { background: #dc2626; }
   button:disabled { opacity: 0.5; }
   video, canvas { width: 100%; border-radius: 10px; background: #000; }
+  /* กล้องหน้า (selfie) ส่งภาพดิบแบบกลับซ้าย-ขวา — mirror แค่ตอน preview ให้ดูเป็นธรรมชาติเหมือนส่องกระจก
+     (ไม่ mirror ภาพที่ถ่ายเก็บจริงใน canvas เพื่อให้ HR ดูภาพที่ไม่กลับด้านตอนตรวจสอบ) */
+  #selfieVideo { transform: scaleX(-1); }
   #status { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; white-space: pre-wrap; }
   .ok { background: #dcfce7; color: #166534; }
   .err { background: #fee2e2; color: #991b1b; }
