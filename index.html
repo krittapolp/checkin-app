@@ -193,7 +193,12 @@ async function callApi(action, payload) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action, ...payload })
   });
-  return res.json();
+  try {
+    return await res.json();
+  } catch(e) {
+    // Apps Script อาจ return HTML error page แทน JSON (cold start / overload)
+    return { ok: false, error: 'ระบบยุ่งอยู่ กรุณารอสักครู่แล้วลองใหม่' };
+  }
 }
 
 /* ===================== LINE Login ===================== */
@@ -250,7 +255,13 @@ async function initLiff() {
 }
 $('loginBtn').onclick = () => liff.login();
 window.addEventListener('load', () => {
-  if (typeof liff !== 'undefined') initLiff().catch(e => showStatus('LIFF init error: ' + e, 'err'));
+  if (typeof liff === 'undefined') return;
+  // retry 1 ครั้งหลัง 1.5 วินาที สำหรับ iOS ที่ LIFF init fail รอบแรกเพราะ timing
+  initLiff().catch(() => {
+    setTimeout(() => {
+      initLiff().catch(e => showStatus('LIFF init error: ' + e, 'err'));
+    }, 1500);
+  });
 });
 
 /* ===================== เมนูหลัก ===================== */
