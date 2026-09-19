@@ -187,17 +187,33 @@ function hideAll(...ids) { ids.forEach(id => $(id).classList.add('hidden')); }
 function show(id) { $(id).classList.remove('hidden'); }
 
 /* ===================== POST helper (หลีกเลี่ยง CORS preflight ด้วย text/plain) ===================== */
-async function callApi(action, payload) {
-  const res = await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, ...payload })
-  });
-  try {
-    return await res.json();
-  } catch(e) {
-    // Apps Script อาจ return HTML error page แทน JSON (cold start / overload)
-    return { ok: false, error: 'ระบบยุ่งอยู่ กรุณารอสักครู่แล้วลองใหม่' };
+async function callApi(action, payload, _retries = 3, _delay = 2000) {
+  for (let attempt = 1; attempt <= _retries; attempt++) {
+    try {
+      const res = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, ...payload })
+      });
+      try {
+        const data = await res.json();
+        return data;
+      } catch(e) {
+        // Apps Script return HTML (cold start) — retry ถ้ายังมีโอกาส
+        if (attempt < _retries) {
+          await new Promise(r => setTimeout(r, _delay));
+          continue;
+        }
+        return { ok: false, error: 'ระบบยุ่งอยู่ กรุณารอสักครู่แล้วลองใหม่' };
+      }
+    } catch(e) {
+      // Network error — retry
+      if (attempt < _retries) {
+        await new Promise(r => setTimeout(r, _delay));
+        continue;
+      }
+      return { ok: false, error: 'ไม่สามารถเชื่อมต่อได้ กรุณาตรวจสอบสัญญาณอินเทอร์เน็ต' };
+    }
   }
 }
 
